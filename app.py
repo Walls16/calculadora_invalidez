@@ -53,10 +53,10 @@ st.markdown("""
 #  SIDEBAR
 # ═════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.title("⚙️ Parámetros")
+    st.title("Parámetros")
 
     # ── Token Banxico ─────────────────────────────────────────────────────────
-    with st.expander("🔑 Token Banxico (tiempo real)", expanded=not token_activo()):
+    with st.expander("Token Banxico (tiempo real)", expanded=not token_activo()):
         st.caption(
             "Con token los datos se actualizan desde la API de Banxico. "
             "Sin token se usan los CSVs locales (hasta feb 2026). "
@@ -88,7 +88,7 @@ with st.sidebar:
             set_token(token_input.strip())
 
     # ── Datos en vivo ─────────────────────────────────────────────────────────
-    with st.expander("📡 Datos actuales", expanded=True):
+    with st.expander("Datos actuales", expanded=True):
         try:
             fecha_udi, val_udi = ultima_udi()
             f_udi = fuente_udi()
@@ -138,11 +138,11 @@ with st.sidebar:
 
     # Indicador visual del grado
     if grado_pct < 25:
-        st.error(f"🚫 {grado_pct}% — Sin prestación (< 25%)")
+        st.error(f"{grado_pct}% — Sin prestación (< 25%)")
     elif grado_pct < 50:
-        st.warning(f"⚠️ {grado_pct}% — Subsidio temporal (25–49%)")
+        st.warning(f"{grado_pct}% — Subsidio temporal (25–49%)")
     elif grado_pct < 75:
-        st.info(f"ℹ️ {grado_pct}% — Pensión definitiva (50–74%)")
+        st.info(f"{grado_pct}% — Pensión definitiva (50–74%)")
     else:
         st.success(f"✓ {grado_pct}% — Invalidez total (≥ 75%)")
 
@@ -206,31 +206,69 @@ with st.sidebar:
 
     # ── Historia salarial ─────────────────────────────────────────────────────
     st.markdown('<div class="section-hdr">Historia salarial</div>', unsafe_allow_html=True)
-    st.caption("Salario diario promedio por año (últimas ≈500 semanas / 10 años)")
-    default_hist = {2024:2369, 2023:2300, 2022:2172, 2021:2031, 2020:1014,
-                    2019:472,  2018:413,  2016:200,  2015:1619, 2014:1558}
-    hist_df = pd.DataFrame(
-        [(a, s) for a, s in sorted(default_hist.items(), reverse=True)],
-        columns=["Año", "Salario diario ($)"]
-    )
-    hist_edit = st.data_editor(
-        hist_df, num_rows="dynamic",
-        column_config={
-            "Año": st.column_config.NumberColumn("Año", min_value=1990,
-                                                  max_value=hoy.year, step=1),
-            "Salario diario ($)": st.column_config.NumberColumn(
-                "Salario diario ($)", min_value=0.0, format="$%.2f"),
-        },
-        hide_index=True, use_container_width=True,
+
+    modo_salario = st.radio(
+        "Modo de captura",
+        ["Promedio directo", "Detallado por año"],
+        horizontal=True,
+        help=(
+            "**Promedio directo**: ingresa el salario diario integrado promedio "
+            "de las últimas ~500 semanas ya calculado externamente. "
+            "No se aplicarán factores INPC adicionales.\n\n"
+            "**Detallado por año**: captura el salario por cada año para que la "
+            "calculadora aplique los factores INPC automáticamente."
+        ),
     )
 
-    calcular_btn = st.button("🔢 Calcular", type="primary", use_container_width=True)
+    default_hist = {2024:2369, 2023:2300, 2022:2172, 2021:2031, 2020:1014,
+                    2019:472,  2018:413,  2016:200,  2015:1619, 2014:1558}
+
+    if modo_salario == "Promedio directo":
+        st.caption(
+            "Ingresa el salario diario integrado promedio de las últimas ~500 semanas "
+            "(ya actualizado a pesos de hoy). "
+            "**No se aplicarán factores INPC adicionales.**"
+        )
+        sal_promedio_directo = st.number_input(
+            "Salario diario promedio ($)",
+            min_value=0.01,
+            value=1_500.00,
+            step=0.01,
+            format="%.2f",
+        )
+        # Synthetic single-row DataFrame so downstream code is unchanged
+        hist_edit = pd.DataFrame(
+            [(hoy.year, sal_promedio_directo)],
+            columns=["Año", "Salario diario ($)"],
+        )
+        modo_directo = True
+        st.info(f"Salario promedio ingresado: **${sal_promedio_directo:,.2f}** / día")
+    else:
+        st.caption("Salario diario promedio por año (últimas ≈500 semanas / 10 años)")
+        hist_df = pd.DataFrame(
+            [(a, s) for a, s in sorted(default_hist.items(), reverse=True)],
+            columns=["Año", "Salario diario ($)"]
+        )
+        hist_edit = st.data_editor(
+            hist_df, num_rows="dynamic",
+            column_config={
+                "Año": st.column_config.NumberColumn("Año", min_value=1990,
+                                                      max_value=hoy.year, step=1),
+                "Salario diario ($)": st.column_config.NumberColumn(
+                    "Salario diario ($)", min_value=0.0, format="$%.2f"),
+            },
+            hide_index=True, use_container_width=True,
+        )
+        modo_directo = False
+        sal_promedio_directo = None
+
+    calcular_btn = st.button("Calcular", type="primary", use_container_width=True)
 
 
 # ═════════════════════════════════════════════════════════════════════════════
 #  ÁREA PRINCIPAL
 # ═════════════════════════════════════════════════════════════════════════════
-st.title("🏥 Calculadora de Montos Constitutivos · Invalidez")
+st.title("Calculadora de Montos Constitutivos · Invalidez")
 st.caption("Seguro de Invalidez (MCSI) y Sobrevivencia (MCSS) · LSS · Nota Técnica CNSF")
 
 if not calcular_btn:
@@ -286,17 +324,27 @@ if elegib["bloquear_calculo"]:
              "Revisa las condiciones indicadas arriba.")
     st.stop()
 
-# ─── Preparar parámetros ──────────────────────────────────────────────────────
-historia_sal = {
-    int(row["Año"]): float(row["Salario diario ($)"])
-    for _, row in hist_edit.iterrows()
-    if pd.notna(row["Año"]) and pd.notna(row["Salario diario ($)"])
-       and float(row["Salario diario ($)"]) > 0
-}
-if not historia_sal:
-    st.error("La historia salarial está vacía. Ingresa al menos un año.")
-    st.stop()
+# ─── Preparar historia salarial ───────────────────────────────────────────────
+if modo_directo:
+    # Use the direct average as-is; no INPC re-actualisation
+    if sal_promedio_directo <= 0:
+        st.error("El salario promedio debe ser mayor a cero.")
+        st.stop()
+    historia_sal = {hoy.year: sal_promedio_directo}
+    _override_sal_prom = sal_promedio_directo
+else:
+    historia_sal = {
+        int(row["Año"]): float(row["Salario diario ($)"])
+        for _, row in hist_edit.iterrows()
+        if pd.notna(row["Año"]) and pd.notna(row["Salario diario ($)"])
+           and float(row["Salario diario ($)"]) > 0
+    }
+    if not historia_sal:
+        st.error("La historia salarial está vacía. Ingresa al menos un año.")
+        st.stop()
+    _override_sal_prom = None
 
+# ─── Preparar parámetros ──────────────────────────────────────────────────────
 tiene_conyugue = bool(conyugue_cfg)
 params = ParametrosInvalido(
     edad_x=int(edad_x), sexo_x=sexo_x,
@@ -312,6 +360,10 @@ params = ParametrosInvalido(
     anio_pension=int(anio_p),
 )
 
+# Inject pre-computed average if available (requires sal_prom_override field in core)
+if _override_sal_prom is not None and hasattr(params, "sal_prom_override"):
+    params.sal_prom_override = _override_sal_prom
+
 # ─── Cálculo ──────────────────────────────────────────────────────────────────
 try:
     with st.spinner("Calculando montos constitutivos..."):
@@ -324,7 +376,7 @@ except Exception as e:
 
 # ─── Indicador de OK ──────────────────────────────────────────────────────────
 st.markdown(
-    f'<div class="ok-box">✅ Cálculo completado · {elegib["tipo_prestacion"].upper()} · '
+    f'<div class="ok-box">Cálculo completado · {elegib["tipo_prestacion"].upper()} · '
     f'Invalidez {grado_pct}% · {int(semanas)} semanas cotizadas</div>',
     unsafe_allow_html=True
 )
@@ -339,7 +391,7 @@ total    =  resultado.get("MC_TOTAL", 0)
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("MCSI",      f"${mcsi_val:>14,.2f}")
 c2.metric("MCSS",      f"${mcss_val:>14,.2f}" if mcss_val else "—")
-c3.metric("💰 MC Total", f"${total:>14,.2f}")
+c3.metric("MC Total", f"${total:>14,.2f}")
 c4.metric("Tipo",       elegib["tipo_prestacion"].title())
 
 st.divider()
@@ -348,13 +400,14 @@ st.divider()
 col_a, col_b = st.columns(2)
 
 with col_a:
-    st.markdown("#### 📊 Parámetros clave")
+    st.markdown("#### Parámetros clave")
     rows = [
         ("Salario prom. 500 semanas", f"${resultado.get('sal_prom_500',0):,.4f}"),
         ("PMG vigente",               f"${resultado.get('PMG',0):,.2f}"),
         ("FACBI",                     f"{resultado.get('FACBI',0):.8f}"),
         ("b₁ mensual (inválido)",     f"${resultado.get('b1_mensual',0):,.2f}"),
         ("b₂ mensual (viuda/asc.)",   f"${resultado.get('b2_viuda_mens',0):,.2f}"),
+        ("Modo salarial",             "Promedio directo" if modo_directo else "Detallado por año"),
         ("Fuente UDI",                fuente_udi()),
         ("Fuente INPC",               fuente_inpc()),
     ]
@@ -364,7 +417,7 @@ with col_a:
         r2.markdown(f"<small><b>{val}</b></small>", unsafe_allow_html=True)
 
 with col_b:
-    st.markdown("#### 🔢 Desglose MCSI")
+    st.markdown("#### Desglose MCSI")
     mcsi_d = resultado.get("MCSI") or {}
     lbl_map = {
         "ax12"  : "ä⁽¹²⁾_x",
@@ -381,7 +434,7 @@ with col_b:
             r2.markdown(f"<small><b>${v:,.4f}</b></small>", unsafe_allow_html=True)
 
 if resultado.get("MCSS"):
-    st.markdown("#### 🔢 Desglose MCSS")
+    st.markdown("#### Desglose MCSS")
     mcss_d = resultado["MCSS"]
     lbl_map_s = {"suma_W":"Σ W[k]","suma_CE":"Σ CE[k]","PBSS":"PBSS","PNSS":"PNSS","MCSS":"**MCSS**","PFH":"PFH (finiquito)"}
     cols_m = st.columns(min(len([v for v in mcss_d.values() if isinstance(v, float)]), 5))
@@ -394,32 +447,41 @@ if resultado.get("MCSS"):
 st.divider()
 
 # ─── Historia salarial actualizada ────────────────────────────────────────────
-with st.expander("📋 Historia salarial con factores INPC"):
-    hist_act = resultado.get("historia_actualizada", {})
-    if hist_act:
-        rows_h = []
-        for a in sorted(hist_act.keys(), reverse=True):
-            sal_orig = historia_sal.get(a, 0)
-            sal_act  = hist_act[a]
-            factor   = sal_act / sal_orig if sal_orig > 0 else 0
-            rows_h.append({"Año": a, "Salario original ($)": sal_orig,
-                           "Factor INPC": factor, "Salario actualizado ($)": sal_act})
-        df_h = pd.DataFrame(rows_h)
-        st.dataframe(
-            df_h.style.format({
-                "Salario original ($)":    "${:,.2f}",
-                "Factor INPC":             "{:.6f}",
-                "Salario actualizado ($)": "${:,.2f}",
-            }),
-            use_container_width=True, hide_index=True
+with st.expander("Historia salarial con factores INPC"):
+    if modo_directo:
+        st.info(
+            f"Modo **Promedio directo** — salario ingresado: "
+            f"**${sal_promedio_directo:,.2f} / día**. "
+            "No se aplicaron factores INPC."
         )
+    else:
+        hist_act = resultado.get("historia_actualizada", {})
+        if hist_act:
+            rows_h = []
+            for a in sorted(hist_act.keys(), reverse=True):
+                sal_orig = historia_sal.get(a, 0)
+                sal_act  = hist_act[a]
+                factor   = sal_act / sal_orig if sal_orig > 0 else 0
+                rows_h.append({"Año": a, "Salario original ($)": sal_orig,
+                               "Factor INPC": factor, "Salario actualizado ($)": sal_act})
+            df_h = pd.DataFrame(rows_h)
+            st.dataframe(
+                df_h.style.format({
+                    "Salario original ($)":    "${:,.2f}",
+                    "Factor INPC":             "{:.6f}",
+                    "Salario actualizado ($)": "${:,.2f}",
+                }),
+                use_container_width=True, hide_index=True
+            )
 
 # ─── Nota metodológica ────────────────────────────────────────────────────────
-with st.expander("📖 Nota metodológica"):
+with st.expander("Nota metodológica"):
     st.markdown(f"""
 **Fuente de datos actuales:**
 - UDIs: {fuente_udi()} — serie SP68257
 - INPC: {fuente_inpc()} — serie SP1
+
+**Modo salarial utilizado:** {"Promedio directo (sin re-actualización INPC)" if modo_directo else "Detallado por año (con factores INPC)"}
 
 **Fórmulas aplicadas:**
 - Factor INPC: `INPC_última_quincena / INPC_2Q_jun_(año_salario)`
