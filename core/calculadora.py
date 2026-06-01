@@ -48,6 +48,11 @@ class ParametrosInvalido:
     anio_pension:      int = field(
         default_factory=lambda: datetime.date.today().year)
 
+    # ── Override de salario promedio (modo "Promedio directo" en la UI)
+    # Si se provee, se usa directamente como sal_prom_500 y se omite el
+    # cálculo por INPC sobre la historia salarial.
+    sal_prom_override: Optional[float] = None
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 def calcular_montos(p: ParametrosInvalido) -> dict:
@@ -67,7 +72,30 @@ def calcular_montos(p: ParametrosInvalido) -> dict:
                 historia_act[int(anio_sal)] = sal_diario * f
             except ValueError:
                 pass
-    sal_prom = salario_promedio_500(historia_act)
+
+    # ── Salario promedio 500 semanas ──────────────────────────────────────────
+    if p.sal_prom_override is not None and p.sal_prom_override > 0:
+        # Modo "Promedio directo": el usuario ya calculó el promedio externamente.
+        sal_prom = float(p.sal_prom_override)
+        # Poblamos historia_act con ese valor para que el expander lo muestre.
+        if not historia_act:
+            historia_act = {p.anio_pension: sal_prom}
+    elif historia_act:
+        sal_prom = salario_promedio_500(historia_act)
+    else:
+        # Fallback: ningún año tuvo factor INPC disponible; usar salarios sin actualizar.
+        historia_act = {
+            int(a): float(s)
+            for a, s in p.historia_salarial.items()
+            if s and float(s) > 0
+        }
+        if not historia_act:
+            raise ValueError(
+                "Historia salarial vacía: no se encontraron salarios válidos "
+                "ni factores INPC para ningún año. Revisa los datos o usa el "
+                "modo 'Promedio directo'."
+            )
+        sal_prom = salario_promedio_500(historia_act)
 
     r["historia_actualizada"] = historia_act
     r["sal_prom_500"]          = sal_prom

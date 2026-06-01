@@ -391,7 +391,7 @@ total    =  resultado.get("MC_TOTAL", 0)
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("MCSI",      f"${mcsi_val:>14,.2f}")
 c2.metric("MCSS",      f"${mcss_val:>14,.2f}" if mcss_val else "—")
-c3.metric("MC Total", f"${total:>14,.2f}")
+c3.metric("💰 MC Total", f"${total:>14,.2f}")
 c4.metric("Tipo",       elegib["tipo_prestacion"].title())
 
 st.divider()
@@ -434,7 +434,7 @@ with col_b:
             r2.markdown(f"<small><b>${v:,.4f}</b></small>", unsafe_allow_html=True)
 
 if resultado.get("MCSS"):
-    st.markdown("#### Desglose MCSS")
+    st.markdown("#### 🔢 Desglose MCSS")
     mcss_d = resultado["MCSS"]
     lbl_map_s = {"suma_W":"Σ W[k]","suma_CE":"Σ CE[k]","PBSS":"PBSS","PNSS":"PNSS","MCSS":"**MCSS**","PFH":"PFH (finiquito)"}
     cols_m = st.columns(min(len([v for v in mcss_d.values() if isinstance(v, float)]), 5))
